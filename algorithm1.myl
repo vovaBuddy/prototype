@@ -1,0 +1,5 @@
+def algorithm1 (signal)
+	var signal1 5
+  	signal1.setValue(55)
+end
+
