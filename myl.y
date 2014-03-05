@@ -129,10 +129,8 @@ body_unit
 definition_unit
   : DEFTOKEN def_list 
     { 
-      char *def_u = malloc(1000*sizeof(char));
-      char p2[100];
-      strcpy(p2, $2);      
-      sprintf(def_u, "\tenum {\n\t\t%s\n\t};", p2); 
+      char *def_u = malloc(strlen($2) + 21);    
+      sprintf(def_u, "\tenum {\n\t\t%s\n\t};", $2); 
       $$ = def_u;
       printf("debug: DEFTOKEN def_list  - %s\n", def_u);  
     }
@@ -142,7 +140,7 @@ def_list
   : def_item
   | def_list ',' def_item 
     { 
-      char *def_u = malloc(1000*sizeof(char));
+      char *def_u = malloc(strlen($1) + strlen($3) + 7);
       printf("debug: def_list $1 - %s\n", $1);  
       printf("debug: def_list $3 - %s\n", $3);  
       sprintf(def_u, "%s\n\t\t%s", $1, $3);
@@ -157,7 +155,7 @@ def_item
     {   
       put_sym($1, SGNL);                                                                   
       char buff [100];
-      char *def_u = malloc(1000*sizeof(char));
+      char *def_u = malloc(strlen($1) + 100);
       sprintf (buff, "%i", $2);
       sprintf(def_u, "%s = %s,", $1, buff); 
       $$ = def_u;   
