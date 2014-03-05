@@ -64,9 +64,8 @@ function_definition
     { 
       FILE * file;
       const char * format = ".h";
-      char * dest;
+      char  *dest = malloc(strlen($2) + strlen(format) + 1);
 
-      dest = malloc(strlen($2) + strlen(format) + 1);
       if (dest)
       {
         sprintf(dest, "%s%s", $2, format);            
@@ -76,6 +75,7 @@ function_definition
       fprintf(file, "%s \n", $6);
       fprintf(file, "} \n");
       free(dest);
+      free($6);
     }
   ;
 
@@ -87,8 +87,13 @@ body
     }
   | body body_unit 
     { 
-      sprintf($$, "%s\n%s", $1, $2);
+      char *body_u = malloc(strlen($1) + strlen($2) + 3);
+      sprintf(body_u, "%s\n%s", $1, $2);
+      free($1);
+      free($2);
+      $$ = body_u;
       printf("debug: body body_unit finded - %s\n", $$);
+
     }
   ;
 
@@ -96,12 +101,15 @@ body_unit
   : definition_unit 
     {
       $$ = $1; 
+      printf("debug: definition_unit fined - %s.%s\n", $1);
     }
   | SGNL'.'FNCT'('NUM')'
     {
+      char *fnct = malloc(1000*sizeof(char));
       printf("debug: распознан вызов функции - %s.%s\n", $1->name, $3->name);
-      sprintf($$, "\t%s\n", (*($3->value.fnctptr))($1->name, $5)); 
-      free($3->name);
+      
+      sprintf(fnct, "\t%s\n", (*($3->value.fnctptr))($1->name, $5)); 
+      $$ = fnct;
     }
   ;
 
@@ -121,7 +129,12 @@ body_unit
 definition_unit
   : DEFTOKEN def_list 
     { 
-      sprintf($$, "\tenum {\n\t\t%s\n\t};", $2); 
+      char *def_u = malloc(1000*sizeof(char));
+      char p2[100];
+      strcpy(p2, $2);      
+      sprintf(def_u, "\tenum {\n\t\t%s\n\t};", p2); 
+      $$ = def_u;
+      printf("debug: DEFTOKEN def_list  - %s\n", def_u);  
     }
   ;
 
@@ -129,7 +142,13 @@ def_list
   : def_item
   | def_list ',' def_item 
     { 
-      sprintf($$, "%s\n\t\t%s", $1, $3);
+      char *def_u = malloc(1000*sizeof(char));
+      printf("debug: def_list $1 - %s\n", $1);  
+      printf("debug: def_list $3 - %s\n", $3);  
+      sprintf(def_u, "%s\n\t\t%s", $1, $3);
+      free($1);
+      free($3);
+      $$ = def_u;
     }
   ;
 
@@ -138,8 +157,11 @@ def_item
     {   
       put_sym($1, SGNL);                                                                   
       char buff [100];
+      char *def_u = malloc(1000*sizeof(char));
       sprintf (buff, "%i", $2);
-      sprintf($$, "%s = %s,", $1, buff);        
+      sprintf(def_u, "%s = %s,", $1, buff); 
+      $$ = def_u;   
+      printf("debug: WORD NUM - %s\n", $$);  
     }
   ;
 

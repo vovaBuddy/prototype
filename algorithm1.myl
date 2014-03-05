@@ -1,5 +1,9 @@
 def algorithm1 (signal)
-	var signal1 5
-  	signal1.setValue(55)
+	var signal1 5, signal2 10
+	var signal3 11, signal4 23, signal5 2
+  
+	signal1.setValue(10)
+	signal2.setValue(1)
+	signal3.setValue(60)
 end
 
