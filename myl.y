@@ -22,24 +22,30 @@
   int  val;
   char    *string;
   sym  *tptr;
+  token_info *tkn_info;
 }
 
 %token <val>  NUM
 %token <string> WORD
-%token <tptr> SGNL FNCT
+%token <tptr> SGNL FNCT ARRAY
 %type <val>   exp
 %type <string> function_definition
 %type <string> argument
-%type <string> definition_unit
+%type <string> definition_unit 
 %type <string> body_unit
 %type <string> body
 %type <string> def_list
 %type <string> def_item
-
+%type <string> condition_block 
+%type <string> call_functioin condition  tmp_var call_array  
+%type <tkn_info> set_items 
 %token TOKFUNCTION
 %token TOKEND
 %token DEFTOKEN
 %token TOKENIF
+%token DOTOKEN
+%token TOKENELSE
+%token TOKENELSEIF
 
 %start translation_unit
 
@@ -88,7 +94,7 @@ body
   | body body_unit 
     { 
       char *body_u = malloc(strlen($1) + strlen($2) + 3);
-      sprintf(body_u, "%s\n%s", $1, $2);
+      sprintf(body_u, "\t%s\n\t%s", $1, $2);
       free($1);
       free($2);
       $$ = body_u;
@@ -103,36 +109,155 @@ body_unit
       $$ = $1; 
       printf("debug: definition_unit fined - %s.%s\n", $1);
     }
-  | SGNL'.'FNCT'('NUM')'
+  | call_functioin
+  {
+    $$ = $1;
+    printf("debug: call_functioin fined - %s.%s\n", $1);
+  }
+  | call_array
+    {
+      $$ = $1; 
+      printf("debug: call_array fined - %s.%s\n", $1);
+    }
+  | condition_block
+    {
+      $$ = $1; 
+      printf("debug: condition_block fined - %s.%s\n", $1);
+    }
+  ;
+
+call_functioin
+  : SGNL'.'FNCT'('NUM')'
     {
       char *fnct = malloc(1000*sizeof(char));
       printf("debug: распознан вызов функции - %s.%s\n", $1->name, $3->name);
       
-      sprintf(fnct, "\t%s\n", (*($3->value.fnctptr))($1->name, $5)); 
+      sprintf(fnct, "%s", (*($3->value.fnctptr))($1->value.translate_to, $5)); 
       $$ = fnct;
     }
   ;
 
-// condition_block
-//         : TOKENIF condition body TOKEND { printf("condition\n" );}
-//         ;
 
-// condition
-//         : condition_unit
-//         | condition condition_unit
-//         ;
+call_array
+  : ARRAY '.' FNCT DOTOKEN tmp_var body TOKEND
+    {
+      printf("debug: call_array "); 
+      char *arr = malloc(1000*sizeof(char));
+      printf("debug: call_array - %s.%s\n", $1->name, $3->name);      
+      sprintf(arr, "int i = 0;\n\tfor (i; i<%i;++i){\n\t\t%s\n\t}",$1->value.var, $6); 
+      $$ = arr;
 
-// condition_unit
-//         : WORD
-//         ;
+    }
+  ;
+
+tmp_var
+  : '|' WORD '|'
+    {
+      char* str = malloc(strlen($<tptr>-3->name) + 15);
+      sym *ptr = put_sym($2, SGNL);
+      sprintf(str, "signalTable[%s[i]]", $<tptr>-3->name); // не сработает вариант цыкла в цыкле
+      ptr->value.translate_to = str; 
+      printf("debug: tmp_var%s\n", $2 );
+    }
+  ;
+
+condition_block
+ : TOKENIF condition body TOKEND 
+   { 
+    char* def = malloc(sizeof(char) * 1000);
+    sprintf(def, "if(%s) {\n\t\t%s\n\t}", $2, $3);
+    $$ = def;
+    printf("debug: condition_block\n%s\n", def );
+    printf("debug: condition_block\n%s\n", $$ );
+   }
+  | TOKENIF condition body TOKENELSE body TOKEND 
+   { 
+    char* def = malloc(sizeof(char) * 1000);
+    sprintf(def, "if(%s) {\n\t\t%s\n\t}\n\telse {\n\t\t%s\n\t}", $2, $3, $5);
+    $$ = def;
+    printf("debug: condition_block\n%s\n", def );
+    printf("debug: condition_block\n%s\n", $$ );
+   }
+ ;
+
+// elseif_body
+//   : elseif_item
+//   | elseif_body elseif_item
+//     {
+//       char *else_u = malloc(strlen($1) + strlen($2) + 3);
+//       sprintf(else_u, "\t%s\n\t%s", $1, $2);
+//       free($1);
+//       free($2);
+//       $$ = else_u;
+//       printf("debug: else_body else_item finded - %s\n", $$);
+//     }
+//   ;
+
+// elseif_item
+//   : TOKENELSEIF body
+//     {
+//       char *else_u = malloc(strlen($2) + 21);    
+//       sprintf(else_u, "else {\n\t\t%s\n\t}", $2); 
+//       $$ = else_u;
+//       printf("debug: DEFTOKEN def_list  - %s\n", else_u);  
+//     }
+//   ;
+
+condition
+ : condition_unit
+ | condition condition_unit
+ | call_functioin
+ ;
+
+condition_unit
+ : WORD
+ ;
 
 definition_unit
   : DEFTOKEN def_list 
     { 
       char *def_u = malloc(strlen($2) + 21);    
-      sprintf(def_u, "\tenum {\n\t\t%s\n\t};", $2); 
+      sprintf(def_u, "enum {\n\t\t%s\n\t};", $2); 
       $$ = def_u;
       printf("debug: DEFTOKEN def_list  - %s\n", def_u);  
+    }
+
+  | WORD '=' '[' set_items']'
+    {
+      sym *ptr = put_sym($1, ARRAY);     
+      ptr->value.var = $4->info; 
+      printf("!!!debug: definition_unit count  - %i\n", $4->info);   
+      char *arr = malloc(strlen($1) + strlen($4->value) + 15);    
+      sprintf(arr, "int %s[] = {%s};", $1, $4->value); 
+      $$ = arr;
+      printf("debug: array  - %s\n", arr);     
+    }
+  ;
+
+set_items
+  : SGNL
+    {
+      token_info *t = malloc(sizeof(token_info));
+      char *sgnl = malloc(strlen($1->name) + 5);    
+      sprintf(sgnl, "%s", $1->name); 
+      t->value = sgnl;
+      t->info = 1;
+      $$ = t;
+      printf("!!!debug:SGNL count  - %i\n", $$->info); 
+      printf("debug: SGNL  - %s\n", sgnl);  
+    }
+
+  | set_items ',' SGNL
+    {
+      token_info *t = malloc(sizeof(token_info));
+      char *sgnl = malloc(strlen($1->value) + strlen($3->name) + 5);    
+      sprintf(sgnl, "%s, %s", $1->value, $3->name); 
+      t->value = sgnl;
+      t->info = $1->info + 1;
+      $$ = t;
+      printf("!!!debug: set_items count  - %i\n", $$->info); 
+
+      printf("debug: set_items SGNL  - %s\n", sgnl);  
     }
   ;
 
@@ -153,7 +278,11 @@ def_list
 def_item
   : WORD NUM  
     {   
-      put_sym($1, SGNL);                                                                   
+      sym *ptr = put_sym($1, SGNL);  
+      char* str = malloc(strlen($1) + 15);
+      sprintf(str, "signalTable[%s]", $1);
+      ptr->value.var = $2;
+      ptr->value.translate_to = str;                                                          
       char buff [100];
       char *def_u = malloc(strlen($1) + 100);
       sprintf (buff, "%i", $2);
@@ -206,9 +335,42 @@ char* setValue(char* name, int value)
 {
   printf("debug: Start setValue for %s\n", name);
   char *str = malloc(sizeof(char) * 100);
-  sprintf(str, "signalTable[%s] = %i;",name, value );
+  sprintf(str, "%s = %i;",name, value );
 
   return str;
+}
+
+char* getValue(char* name, int value)
+{
+  printf("debug: Start getValue for %s\n", name);
+  char *str = malloc(sizeof(char) * 100);
+  sym *rec;
+  rec = get_sym(name);
+  
+  sprintf(str, "%s",name);
+
+  return str;
+}
+
+
+char* equal(char* name, int value)
+{
+  printf("debug: Start equal for %s\n", name);
+  char *str = malloc(sizeof(char) * 100);
+  
+  sprintf(str, "%s == %i",name, value);
+
+  return str;
+}
+
+char* each(char* name, int value)
+{
+  printf("debug: Start each for %s\n", name);
+  char *str = malloc(sizeof(char) * 100);
+  
+  sprintf(str, "%s == %i",name, value);
+
+  return "none";
 }
 
 struct init
@@ -220,6 +382,9 @@ struct init
 struct init math_functions[] =
 {
   "setValue", setValue,
+  "getValue", getValue, 
+  "equal?", equal,
+  "each", each,
   0, 0
 };
 

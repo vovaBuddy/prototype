@@ -10,7 +10,10 @@ def                		return TOKFUNCTION;
 end						return TOKEND;
 var						return DEFTOKEN;
 if 						return TOKENIF;
-[a-zA-Z0-9]+			{yylval.string=strdup(yytext);
+else 					return TOKENELSE;
+elsif 					return TOKENELSEIF;
+do						return DOTOKEN;
+[a-zA-Z0-9?]+			{yylval.string=strdup(yytext);
 						 sym *rec = get_sym(yytext);
 						 if( rec != 0)
 						 {
@@ -26,4 +29,8 @@ if 						return TOKENIF;
 ")"						return ')'; 
 ","						return ','; 
 "."						return '.'; 
+"="						return '=';
+"["						return '[';
+"]"						return ']';
+"|"						return '|';
 %%
