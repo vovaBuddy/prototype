@@ -1,9 +1,38 @@
 def algorithm1 (signal)
 	var signal1 5, signal2 10
-	var signal3 11, signal4 23, signal5 2
-  
-	signal1.setValue(10)
-	signal2.setValue(1)
-	signal3.setValue(60)
+	var signal3 11, signal4 23
+
+	array = [signal1, signal2, signal3, signal4]
+	array2 = [signal3, signal4]
+
+	array.each do |s|
+		s.setValue(1)
+	end
+
+	if signal1.getValue() >= 10 && signal1.getValue() != 15
+		signal2.setValue(10)
+	end
+
+	case signal1.getValue()
+		when 1
+			signal1.setValue(10)
+		when signal3.getValue()
+			signal1.setValue(12)
+		else
+			array.each do |s|
+				s.setValue(0)
+			end
+	end
+
+
+	if (signal1.equal?(10) || signal2.equal?(11) ) &&  (signal3.equal?(1) || signal2.equal?(11))
+		signal4.setValue(10)
+	else
+		array2.each do |s|
+			if s.equal?(10) 
+				s.setValue(2)
+			end
+		end
+	end 
 end
 

@@ -25,4 +25,5 @@ extern sym *sym_table;
 
 sym *put_sym(const char *, int);
 sym *get_sym(const char *);
+void remove_sym (const char *sym_name);
 

@@ -12,6 +12,10 @@ var						return DEFTOKEN;
 if 						return TOKENIF;
 else 					return TOKENELSE;
 elsif 					return TOKENELSEIF;
+case					return TOKENSWITCH;
+when					return TOKENCASE;
+"&&"						return TOKENLOGICAND;
+"||"						return TOKENLOGICOR;
 do						return DOTOKEN;
 [a-zA-Z0-9?]+			{yylval.string=strdup(yytext);
 						 sym *rec = get_sym(yytext);
@@ -33,4 +37,7 @@ do						return DOTOKEN;
 "["						return '[';
 "]"						return ']';
 "|"						return '|';
+">"						return '>';
+"<"						return '<';
+"!"						return '!';
 %%

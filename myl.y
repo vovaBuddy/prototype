@@ -36,8 +36,8 @@
 %type <string> body
 %type <string> def_list
 %type <string> def_item
-%type <string> condition_block 
-%type <string> call_functioin condition  tmp_var call_array  
+%type <string> condition_block condition_unit switch_block when_block when_item
+%type <string> call_functioin condition  tmp_var call_array logic_tokin compar_logic
 %type <tkn_info> set_items 
 %token TOKFUNCTION
 %token TOKEND
@@ -46,6 +46,10 @@
 %token DOTOKEN
 %token TOKENELSE
 %token TOKENELSEIF
+%token TOKENLOGICOR
+%token TOKENLOGICAND
+%token TOKENSWITCH
+%token TOKENCASE
 
 %start translation_unit
 
@@ -78,6 +82,7 @@ function_definition
       }
       file = fopen(dest,"wt");
       fprintf(file, "void %s (signal_t s) {\n", $2);
+      fprintf(file, "\tint i = 0;\n");
       fprintf(file, "%s \n", $6);
       fprintf(file, "} \n");
       free(dest);
@@ -93,7 +98,7 @@ body
     }
   | body body_unit 
     { 
-      char *body_u = malloc(strlen($1) + strlen($2) + 3);
+      char *body_u = malloc(strlen($1) + strlen($2) + 30);
       sprintf(body_u, "\t%s\n\t%s", $1, $2);
       free($1);
       free($2);
@@ -124,15 +129,73 @@ body_unit
       $$ = $1; 
       printf("debug: condition_block fined - %s.%s\n", $1);
     }
+  | switch_block
+    {
+      $$ = $1; 
+      printf("debug: switch_block fined - %s.%s\n", $1);
+    }
+  ;
+
+switch_block 
+  : TOKENSWITCH call_functioin when_block TOKEND
+    {
+      char *sw = malloc(10000*sizeof(char));
+      printf("debug: TOKENSWITCH call_functioin when_block TOKEND \n");      
+      sprintf(sw, "switch(%s) {\n\t%s\n\t}", $2, $3); 
+      $$ = sw;
+    }
+  ;
+
+when_block
+  : when_item
+  | when_block when_item
+    {
+      char *when_i = malloc(10000*sizeof(char));
+      printf("debug: when_block when_item \n");      
+      sprintf(when_i, "%s \n\t%s", $1, $2); 
+      $$ = when_i;
+    }
+  ;
+
+when_item
+  :  TOKENCASE NUM body
+    {
+      char *when_i = malloc(10000*sizeof(char));
+      printf("debug: TOKENCASE NUM body \n");      
+      sprintf(when_i, "case %i: \n\t%s\n\tbreak;", $2, $3); 
+      $$ = when_i;
+    }
+  |  TOKENCASE call_functioin body
+    {
+      char *when_i = malloc(10000*sizeof(char));
+      printf("debug: TOKENCASE NUM body \n");      
+      sprintf(when_i, "case %s: \n\t%s\n\tbreak;", $2, $3); 
+      $$ = when_i;
+    }
+  |  TOKENELSE  body
+    {
+      char *when_i = malloc(10000*sizeof(char));
+      printf("debug: TOKENCASE NUM body \n");      
+      sprintf(when_i, "case default: \n\t%s\n\tbreak;", $2); 
+      $$ = when_i;
+    }
   ;
 
 call_functioin
   : SGNL'.'FNCT'('NUM')'
     {
-      char *fnct = malloc(1000*sizeof(char));
+      char *fnct = malloc(10000*sizeof(char));
       printf("debug: распознан вызов функции - %s.%s\n", $1->name, $3->name);
       
       sprintf(fnct, "%s", (*($3->value.fnctptr))($1->value.translate_to, $5)); 
+      $$ = fnct;
+    }
+  | SGNL'.'FNCT'('')'
+    {
+      char *fnct = malloc(10000*sizeof(char));
+      printf("debug: распознан вызов функции - %s.%s\n", $1->name, $3->name);
+      
+      sprintf(fnct, "%s", (*($3->value.fnctptr))($1->value.translate_to, 0)); 
       $$ = fnct;
     }
   ;
@@ -143,9 +206,10 @@ call_array
     {
       printf("debug: call_array "); 
       char *arr = malloc(1000*sizeof(char));
-      printf("debug: call_array - %s.%s\n", $1->name, $3->name);      
-      sprintf(arr, "int i = 0;\n\tfor (i; i<%i;++i){\n\t\t%s\n\t}",$1->value.var, $6); 
+      printf("debug: call_array - %s.%s\n", $1->name, $3->name);     
+      sprintf(arr, "for (i=0; i<%i;++i){\n\t\t%s\n\t}",$1->value.var, $6); 
       $$ = arr;
+      remove_sym($5); // c учетом что всегда sym_table ссылается tmp_var !исправить
 
     }
   ;
@@ -158,13 +222,14 @@ tmp_var
       sprintf(str, "signalTable[%s[i]]", $<tptr>-3->name); // не сработает вариант цыкла в цыкле
       ptr->value.translate_to = str; 
       printf("debug: tmp_var%s\n", $2 );
+      $$ = $2;
     }
   ;
 
 condition_block
  : TOKENIF condition body TOKEND 
    { 
-    char* def = malloc(sizeof(char) * 1000);
+    char* def = malloc(sizeof(char) * 10000);
     sprintf(def, "if(%s) {\n\t\t%s\n\t}", $2, $3);
     $$ = def;
     printf("debug: condition_block\n%s\n", def );
@@ -172,7 +237,7 @@ condition_block
    }
   | TOKENIF condition body TOKENELSE body TOKEND 
    { 
-    char* def = malloc(sizeof(char) * 1000);
+    char* def = malloc(sizeof(char) * 10000);
     sprintf(def, "if(%s) {\n\t\t%s\n\t}\n\telse {\n\t\t%s\n\t}", $2, $3, $5);
     $$ = def;
     printf("debug: condition_block\n%s\n", def );
@@ -205,12 +270,83 @@ condition_block
 
 condition
  : condition_unit
- | condition condition_unit
- | call_functioin
+ | condition logic_tokin condition_unit
+ {
+  char *def_u = malloc(strlen($2) + strlen($1) + strlen($3) + 30);    
+  sprintf(def_u, "%s %s %s", $1, $2, $3); 
+  $$ = def_u;
+  printf("debug: condition logic_tokin  - %s\n", def_u);  
+ }
+ | condition logic_tokin '(' condition ')'
+   {
+
+      char *def_u = malloc(strlen($1) + strlen($2) + strlen($4) + 30);    
+      sprintf(def_u, " %s %s ( %s )", $1, $2, $4); 
+      $$ = def_u;
+      printf("!!!!!!!!!!!!1debug: condition logic_tokin  - %s\n", def_u);  
+   }
+ | '(' condition ')' logic_tokin condition 
+   {
+      char *def_u = malloc(strlen($2) + strlen($4) + strlen($5) + 30);    
+      sprintf(def_u, " ( %s ) %s %s ", $2, $4, $5); 
+      $$ = def_u;
+      printf("!!!!!!!!!!!!1debug: condition logic_tokin  - %s\n", def_u);  
+   }
+ | '(' condition ')' logic_tokin '(' condition ')'
+   {
+      char *def_u = malloc(strlen($2) + strlen($4) + strlen($6) + 30);    
+      sprintf(def_u, " ( %s ) %s ( %s )", $2, $4, $6); 
+      $$ = def_u;
+      printf("!!!!!!!!!!!!1debug: condition logic_tokin  - %s\n", def_u);  
+   }
  ;
 
+
+logic_tokin
+  : TOKENLOGICAND
+    {
+      $$ = "&&";
+    }
+  | TOKENLOGICOR
+    {
+      $$ = "||";
+    }
+  ;
+
+
 condition_unit
- : WORD
+ : call_functioin
+ | call_functioin compar_logic NUM
+   {
+      char *def_u = malloc(strlen($1) + strlen($2) + 100);    
+      sprintf(def_u, "%s %s %i", $1, $2, $3); 
+      $$ = def_u;
+      printf("1debug: call_functioin compar_logic NUM  - %s\n", def_u);  
+   }
+ | call_functioin compar_logic call_functioin
+ ;
+
+compar_logic
+ : '<'
+ {
+  $$ = "<";
+ }
+ | '>'
+ {
+  $$ = ">";
+ }
+ | '>''='
+ {
+  $$ = ">=";
+ }
+ | '<''='
+  {
+   $$ = "<=";
+  }
+ | '!''='
+  {
+   $$ = "!=";
+  }
  ;
 
 definition_unit
@@ -388,7 +524,6 @@ struct init math_functions[] =
   0, 0
 };
 
-
 sym *sym_table = (sym *) 0;
 
 void init_table (void)
@@ -414,6 +549,13 @@ sym* put_sym (const char *sym_name, int sym_type)
   sym_table = ptr;
   printf("debug: sym_tbl - %s\n", sym_name);
   return ptr;
+}
+
+void remove_sym (const char *sym_name)
+{
+  sym *tmp = sym_table;
+  sym_table = sym_table->next;
+  free(tmp);
 }
 
 sym * get_sym (const char *sym_name)
